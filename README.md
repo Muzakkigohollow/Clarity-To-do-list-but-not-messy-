@@ -7,11 +7,11 @@ It provides strict priority sorting, derivation of daily focuses, and enforces s
 ## Tech Stack
 - **Frontend**: React (Vite), Tailwind CSS, Axios
 - **Backend**: Node.js, Express
-- **Database**: MySQL (with an automatic mock DEMO mode fallback)
+- **Database**: MySQL 
 
 ## Prerequisites
 - Node.js (v18+ recommended)
-- MySQL (Optional: backend will fall back to DEMO mode if a connection cannot be established)
+- MySQL 
 
 ---
 
@@ -19,7 +19,7 @@ It provides strict priority sorting, derivation of daily focuses, and enforces s
 
 Follow these steps to set up and run both the frontend and backend locally.
 
-### 1. Database Setup (Optional but Recommended)
+### 1. Database Setup 
 The backend is configured to connect to a MySQL database named `clarity_db`.
 By default it requires a working DB connection (`DB_MODE=real`). If you want demo behavior, set `DB_MODE=mock` explicitly.
 
@@ -29,15 +29,6 @@ If you want to use a real database:
    ```bash
    cd backend
    mysql -u root -p < schema.sql
-   ```
-3. (Optional) Create a `.env` file in the `backend` directory if your credentials differ from the defaults:
-   ```env
-API_KEY=your_api_key_here
-DB_MODE=real
-   DB_HOST=localhost
-   DB_USER=root
-   DB_PASSWORD=your_password
-   DB_NAME=clarity_db
    ```
 
 ### 2. Backend Setup
@@ -82,5 +73,3 @@ VITE_API_KEY=your_api_key_here
 ## Project Structure
 - `/frontend` - React application (Vite setup).
 - `/backend` - Express API and database connection logic (`db.js`, routes, controllers).
-- `findings.md` - Core project requirements, findings, and technical decisions.
-- `task_plan.md` - Implementation phases and status tracker.
