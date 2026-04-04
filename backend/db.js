@@ -12,11 +12,27 @@ const pool = mysql.createPool({
     connectTimeout: 2000
 });
 
-// Simple health check on startup
-pool.query('SELECT 1')
-    .then(() => console.log('✅ Connected to real MySQL database.'))
-    .catch(err => {
-        console.error('❌ Database connection failed. Please ensure MySQL is running and credentials in .env are correct.', err.message);
-    });
+pool.isHealthy = false;
+
+pool.checkConnection = async () => {
+    try {
+        await pool.query('SELECT 1');
+        if (!pool.isHealthy) {
+             console.log('✅ Connected to real MySQL database.');
+        }
+        pool.isHealthy = true;
+        return true;
+    } catch (err) {
+        if (pool.isHealthy) {
+             console.error('❌ Database connection lost:', err.message);
+        }
+        pool.isHealthy = false;
+        return false;
+    }
+};
+
+// Initial health check and interval for circuit breaker
+pool.checkConnection();
+setInterval(pool.checkConnection, 10000);
 
 module.exports = pool;

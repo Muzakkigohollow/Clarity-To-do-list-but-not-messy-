@@ -4,14 +4,17 @@ const TaskForm = ({ onTaskAdded }) => {
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState('MEDIUM');
   const [deadline, setDeadline] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || isSubmitting) return;
+    setIsSubmitting(true);
     await onTaskAdded({ title, priority, deadline: deadline || null });
     setTitle('');
     setPriority('MEDIUM');
     setDeadline('');
+    setIsSubmitting(false);
   };
 
   return (
@@ -45,9 +48,10 @@ const TaskForm = ({ onTaskAdded }) => {
 
         <button
           type="submit"
-          className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition-transform transform hover:-translate-y-0.5 shadow-md"
+          disabled={isSubmitting}
+          className={`w-full md:w-auto text-white font-bold py-3 px-8 rounded-lg transition-transform transform shadow-md ${isSubmitting ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5'}`}
         >
-          Add Task
+          {isSubmitting ? 'Adding...' : 'Add Task'}
         </button>
       </form>
     </div>

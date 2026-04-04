@@ -1,13 +1,5 @@
 const db = require('../db');
 
-function handleError(res, err) {
-    const status = err && err.status ? err.status : 500;
-    const message = status === 503 ? 'Service unavailable' : 'Internal server error';
-    // Server-side log only; never return raw DB error messages to clients.
-    console.error(err);
-    return res.status(status).json({ error: message });
-}
-
 const PRIORITIES = new Set(['HIGH', 'MEDIUM', 'LOW']);
 const STATUSES = new Set(['PENDING', 'DONE']);
 
@@ -22,7 +14,6 @@ function isValidDateOnly(dateStr) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
     const [y, m, d] = dateStr.split('-').map(Number);
     const dt = new Date(Date.UTC(y, m - 1, d));
-    // Guard against invalid dates like 2026-02-31
     return dt.getUTCFullYear() === y && (dt.getUTCMonth() === m - 1) && dt.getUTCDate() === d;
 }
 
@@ -41,25 +32,24 @@ function validateStatus(status) {
 }
 
 function normalizeDeadline(deadline) {
-    // Accept undefined/null/empty as "no deadline"
     if (deadline === undefined || deadline === null || deadline === '') return null;
     if (!isValidDateOnly(deadline)) return undefined;
     return deadline;
 }
 
-exports.getAllTasks = async (req, res) => {
+exports.getAllTasks = async (req, res, next) => {
     try {
         const [rows] = await db.query(
-            'SELECT * FROM tasks WHERE owner=? ORDER BY FIELD(priority, "HIGH", "MEDIUM", "LOW")',
+            'SELECT id, title, priority, deadline, status FROM tasks WHERE user_id=? ORDER BY FIELD(priority, "HIGH", "MEDIUM", "LOW")',
             [req.user.id]
         );
         res.json(rows);
     } catch (err) {
-        handleError(res, err);
+        next(err);
     }
 };
 
-exports.createTask = async (req, res) => {
+exports.createTask = async (req, res, next) => {
     const { title, priority, deadline } = req.body;
     if (!validateTitle(title)) {
         return res.status(400).json({ error: 'Invalid title' });
@@ -75,11 +65,11 @@ exports.createTask = async (req, res) => {
         return res.status(400).json({ error: 'Invalid deadline' });
     }
 
-    const owner = req.user.id;
+    const user_id = req.user.id;
     try {
         const [result] = await db.query(
-            'INSERT INTO tasks (title, priority, deadline, owner) VALUES (?, ?, ?, ?)',
-            [title.trim(), normalizedPriority, normalizedDeadline, owner]
+            'INSERT INTO tasks (title, priority, deadline, user_id) VALUES (?, ?, ?, ?)',
+            [title.trim(), normalizedPriority, normalizedDeadline, user_id]
         );
         res.status(201).json({
             id: result.insertId,
@@ -87,14 +77,14 @@ exports.createTask = async (req, res) => {
             priority: normalizedPriority,
             deadline: normalizedDeadline,
             status: 'PENDING',
-            owner
+            user_id
         });
     } catch (err) {
-        handleError(res, err);
+        next(err);
     }
 };
 
-exports.updateTask = async (req, res) => {
+exports.updateTask = async (req, res, next) => {
     const { id } = req.params;
     const parsedId = parsePositiveInt(id);
     if (!parsedId) {
@@ -109,11 +99,11 @@ exports.updateTask = async (req, res) => {
     const normalizedDeadline = normalizeDeadline(deadline);
     if (normalizedDeadline === undefined) return res.status(400).json({ error: 'Invalid deadline' });
 
-    const owner = req.user.id;
+    const user_id = req.user.id;
     try {
         const [result] = await db.query(
-            'UPDATE tasks SET title=?, priority=?, deadline=?, status=? WHERE id=? AND owner=?',
-            [title.trim(), priority, normalizedDeadline, status, parsedId, owner]
+            'UPDATE tasks SET title=?, priority=?, deadline=?, status=? WHERE id=? AND user_id=?',
+            [title.trim(), priority, normalizedDeadline, status, parsedId, user_id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ error: 'Task not found' });
         res.json({
@@ -123,50 +113,88 @@ exports.updateTask = async (req, res) => {
             priority,
             deadline: normalizedDeadline,
             status,
-            owner
+            user_id
         });
     } catch (err) {
-        handleError(res, err);
+        next(err);
     }
 };
 
-exports.toggleTaskStatus = async (req, res) => {
+exports.deleteTask = async (req, res, next) => {
     const { id } = req.params;
     const parsedId = parsePositiveInt(id);
     if (!parsedId) {
         return res.status(400).json({ error: 'Invalid id' });
     }
-
-    const { status } = req.body;
-    const owner = req.user.id;
-    // ensure status is either PENDING or DONE
-    if (!validateStatus(status)) {
-        return res.status(400).json({ error: 'Invalid status' });
-    }
+    const user_id = req.user.id;
     try {
-        const [result] = await db.query(
-            'UPDATE tasks SET status=? WHERE id=? AND owner=?',
-            [status, parsedId, owner]
-        );
-        if (result.affectedRows === 0) return res.status(404).json({ error: 'Task not found' });
-        res.json({ message: 'Status updated', id: parsedId, status });
-    } catch (err) {
-        handleError(res, err);
-    }
-};
-
-exports.deleteTask = async (req, res) => {
-    const { id } = req.params;
-    const parsedId = parsePositiveInt(id);
-    if (!parsedId) {
-        return res.status(400).json({ error: 'Invalid id' });
-    }
-    const owner = req.user.id;
-    try {
-        const [result] = await db.query('DELETE FROM tasks WHERE id=? AND owner=?', [parsedId, owner]);
+        const [result] = await db.query('DELETE FROM tasks WHERE id=? AND user_id=?', [parsedId, user_id]);
         if (result.affectedRows === 0) return res.status(404).json({ error: 'Task not found' });
         res.json({ message: 'Task deleted' });
     } catch (err) {
-        handleError(res, err);
+        next(err);
+    }
+};
+
+exports.patchTask = async (req, res, next) => {
+    const { id } = req.params;
+    const parsedId = parsePositiveInt(id);
+    if (!parsedId) return res.status(400).json({ error: 'Invalid id' });
+
+    const user_id = req.user.id;
+    const updates = req.body;
+
+    if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: 'No fields provided for update' });
+    }
+
+    try {
+        // Build dynamic query
+        const fields = [];
+        const values = [];
+
+        if (updates.title !== undefined) {
+            if (!validateTitle(updates.title)) return res.status(400).json({ error: 'Invalid title' });
+            fields.push('title = ?');
+            values.push(updates.title.trim());
+        }
+        if (updates.priority !== undefined) {
+            if (!validatePriority(updates.priority)) return res.status(400).json({ error: 'Invalid priority' });
+            fields.push('priority = ?');
+            values.push(updates.priority);
+        }
+        if (updates.status !== undefined) {
+            if (!validateStatus(updates.status)) return res.status(400).json({ error: 'Invalid status' });
+            fields.push('status = ?');
+            values.push(updates.status);
+        }
+        if (updates.deadline !== undefined) {
+            const normalizedDeadline = normalizeDeadline(updates.deadline);
+            if (normalizedDeadline === undefined) return res.status(400).json({ error: 'Invalid deadline' });
+            fields.push('deadline = ?');
+            values.push(normalizedDeadline);
+        }
+
+        if (fields.length === 0) {
+            return res.status(400).json({ error: 'No valid fields provided for update' });
+        }
+
+        values.push(parsedId, user_id);
+        const [result] = await db.query(
+            `UPDATE tasks SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
+            values
+        );
+
+        if (result.affectedRows === 0) return res.status(404).json({ error: 'Task not found' });
+
+        // Retrieve updated task
+        const [rows] = await db.query(
+            'SELECT id, title, priority, deadline, status FROM tasks WHERE id = ? AND user_id = ?',
+            [parsedId, user_id]
+        );
+        res.json({ message: 'Task partially updated', ...rows[0] });
+
+    } catch (err) {
+        next(err);
     }
 };

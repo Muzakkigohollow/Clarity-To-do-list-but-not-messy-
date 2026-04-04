@@ -1,75 +1,105 @@
-# Clarity Task Manager
+# 🎯 Clarity Task Manager
 
-Clarity Task Manager is a time-relevance and priority-filtered task management system designed to reduce cognitive overload by emphasizing what matters now. 
-
-It provides strict priority sorting, derivation of daily focuses, and enforces simplicity with binary states (PENDING/DONE).
-
-## Tech Stack
-- **Frontend**: React (Vite), Tailwind CSS, Axios
-- **Backend**: Node.js, Express
-- **Database**: MySQL 
-
-## Prerequisites
-- Node.js (v18+ recommended)
-- MySQL 
+<p align="center">
+  <em>A modern, multi-tenant task management platform engineered to reduce cognitive overload and enforce priority-driven workflows.</em>
+</p>
 
 ---
 
-## Guide to Run the Project
+## 🚀 Overview
 
-Follow these steps to set up and run both the frontend and backend locally.
+Clarity is a production-ready, full-stack web application built to solve the "messy to-do list" problem. Rather than acting as a standard dumping ground for infinite tasks, Clarity strictly enforces task urgency, automatically filters what matters "Today", and maintains a beautifully minimalist UI.
 
-### 1. Database Setup 
-The backend is configured to connect to a MySQL database named `clarity_db`.
-By default it requires a working DB connection (`DB_MODE=real`). If you want demo behavior, set `DB_MODE=mock` explicitly.
+This project was built emphasizing **Enterprise-Grade Engineering Practices**, implementing robust backend security, relational data isolation, test-driven logic, and a scalable React architecture making it ideal for technical portfolio presentation.
 
-If you want to use a real database:
-1. Ensure MySQL is running on your machine.
-2. Initialize the database using the provided schema:
-   ```bash
-   cd backend
-   mysql -u root -p < schema.sql
-   ```
+## 💻 Tech Stack
 
-### 2. Backend Setup
-1. Open a terminal and navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-2. Install dependencies:
+### Frontend
+- **React 18** (via Vite)
+- **Tailwind CSS** (Custom Design System & responsive layouts)
+- **React Router** (Protected DOM Routing)
+- **Axios** (JWT-Intercepted API bindings)
+
+### Backend
+- **Node.js & Express.js**
+- **JWT & bcrypt** (Stateless authentication & cryptographic password hashing)
+- **Jest & Supertest** (Integration and Unit Testing)
+- **Helmet-inspired headers & Rate Limiting** (Infrastructure Hardening)
+
+### Database
+- **MySQL 8+**
+- **mysql2** (Promise-based connection pooling)
+
+## ⭐ Key Engineering Features
+
+- **Relational Multi-Tenancy:** The database strictly associates Tasks with Users dynamically via foreign keys, enforcing SQL query-level isolation constraints so users can never access each other's data.
+- **Stateless Authentication:** Built natively using JSON Web Tokens. Axios automatically intercepts HTTP requests to seamlessly attach `Authorization: Bearer` headers across the app lifecycle.
+- **Fail-Safe Circuit Breaker:** The Node.js application utilizes a health-check wrapper. If the database crashes, the API gracefully degrades with a HTTP `503 Service Unavailable`, preventing hanging TCP sockets.
+- **Graceful Error Handling:** Centralized try-catch closures prevent Node server crashes, and rigorous input validations reject malformed POST payloads before they touch the database.
+
+---
+
+## 🛠️ Prerequisites
+
+Before you begin, ensure you have installed:
+- **Node.js** (v18+)
+- **MySQL Server** (v8+)
+- **Git**
+
+## 📦 Local Setup Guide
+
+### 1. Database Initialization
+Clarity utilizes MySQL for permanent data storage. We need to create the internal tables.
+```bash
+# Navigate to the backend
+cd backend
+
+# Execute the schema script to generate the `clarity_db` database
+mysql -u root -p < schema.sql
+```
+
+### 2. Backend Environment Setup
+1. Inside the `/backend` folder, install the necessary dependencies:
    ```bash
    npm install
    ```
-3. Start the backend server in development mode:
+2. Create or verify the `/backend/.env` file with these default development variables:
+   ```env
+   PORT=5000
+   DB_HOST=localhost
+   DB_USER=root
+   DB_PASS=1998
+   DB_NAME=clarity_db
+   DB_CONNECTION_LIMIT=10
+   JWT_SECRET=super_secret_dev_key_change_in_production
+   CORS_ORIGIN=http://localhost:5173
+   ```
+3. Start up the backend server:
    ```bash
    npm run dev
    ```
-   *The server should run on `http://localhost:5000` (or another port if configured).*
+   *(Your API will spin up synchronously with the MySQL connection pool at `http://localhost:5000`)*
 
 ### 3. Frontend Setup
-1. Open a **new terminal** and navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
-2. Install dependencies:
+1. Open a **second terminal** and navigate to `/frontend`.
+2. Install the User Interface dependencies:
    ```bash
    npm install
    ```
-3. Create a `.env` file in the `frontend` directory:
+3. Create or verify the `/frontend/.env` file:
    ```env
-VITE_API_KEY=your_api_key_here
+   VITE_API_BASE_URL=http://localhost:5000/api
    ```
-4. Start the frontend development server:
+4. Boot the React application:
    ```bash
    npm run dev
    ```
-   *Vite will start the client, usually on `http://localhost:5173`. Open this URL in your web browser.*
+5. 🌐 **Open [http://localhost:5173](http://localhost:5173)** in your browser. Register a new user, and experience Clarity.
 
-## Key Features
-- **Strict Priority Ordering**: HIGH -> MEDIUM -> LOW classification enforces attention on critical items.
-- **State Model**: Simple binary states (PENDING or DONE).
-- **Temporal Filtering**: Derived focus views emphasizing tasks whose deadline is "Today". 
+## 🧪 Testing
+The backend infrastructure features a suite of integration tests to confirm HTTP response boundaries and data processing logic.
+```bash
+cd backend
+npm run test
+```
 
-## Project Structure
-- `/frontend` - React application (Vite setup).
-- `/backend` - Express API and database connection logic (`db.js`, routes, controllers).

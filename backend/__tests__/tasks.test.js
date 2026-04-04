@@ -1,6 +1,11 @@
 const request = require('supertest');
 const app = require('../app');
 const db = require('../db');
+const jwt = require('jsonwebtoken');
+
+jest.mock('jsonwebtoken', () => ({
+  verify: jest.fn((token, secret, cb) => cb(null, { id: 1, username: 'testuser' }))
+}));
 
 jest.mock('../db', () => ({
     query: jest.fn()
@@ -35,14 +40,52 @@ describe('Tasks API', () => {
         expect(response.body.id).toBe(42);
     });
 
-    test('PATCH /api/tasks/:id/status toggles status', async () => {
-        db.query.mockResolvedValue([{ affectedRows: 1 }]);
+    test('PATCH /api/tasks/:id toggles status', async () => {
+        // Mock a quick returning value for the GET inside patchTask since patchTask checks existence first
+        db.query.mockResolvedValue([[{ id: 42, title: 'Old task', status: 'PENDING' }]]);
 
+        // After the SELECT, we update
         const response = await request(app)
-            .patch('/api/tasks/42/status')
+            .patch('/api/tasks/42')
+            .set('Authorization', 'Bearer fake')
             .send({ status: 'DONE' });
         
         expect(response.status).toBe(200);
         expect(response.body.status).toBe('DONE');
+    });
+
+    test('POST /api/tasks returns 400 on invalid payload', async () => {
+        const response = await request(app)
+            .post('/api/tasks')
+            .set('Authorization', 'Bearer fake')
+            .send({ title: '', priority: 'INVALID_PRIORITY' });
+        
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid title');
+    });
+
+    test('PATCH /api/tasks/:id returns 404 on nonexistent task', async () => {
+        // Mock SELECT returns empty array meaning task not found
+        db.query.mockResolvedValue([[]]);
+
+        const response = await request(app)
+            .patch('/api/tasks/999')
+            .set('Authorization', 'Bearer fake')
+            .send({ status: 'DONE' });
+        
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe('Task not found');
+    });
+
+    test('Integration check against Database Circuit Breaker', async () => {
+        // Manually simulate a broken DB circuit
+        const dbMod = require('../db');
+        const oldIsHealthy = dbMod.isHealthy;
+        dbMod.isHealthy = false;
+        
+        const response = await request(app).get('/api/tasks');
+        expect(response.status).toBe(503);
+        
+        dbMod.isHealthy = oldIsHealthy;
     });
 });

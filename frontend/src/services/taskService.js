@@ -16,7 +16,7 @@ export const updateTask = async (id, taskData) => {
 };
 
 export const toggleTaskStatus = async (id, status) => {
-    const response = await api.patch(`/tasks/${id}/status`, { status });
+    const response = await api.patch(`/tasks/${id}`, { status });
     return response.data;
 };
 

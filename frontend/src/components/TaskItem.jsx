@@ -10,8 +10,11 @@ const TaskItem = ({ task, onToggleStatus, onDelete }) => {
   }[task.priority];
 
   // formatting the deadline purely visual mapping
-  const formattedDate = task.deadline ? new Date(task.deadline).toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) : null;
-
+  let formattedDate = null;
+  if (task.deadline) {
+    const [y, m, d] = task.deadline.substring(0, 10).split('-');
+    formattedDate = new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
   return (
     <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 mb-4 rounded-xl border-l-8 transition-all ${isDone ? 'bg-gray-50 border-gray-300 opacity-50 grayscale' : `bg-white shadow-md border-gray-100 hover:shadow-lg ${priorityConfig.colors}`}`}>
       <div className="flex items-center gap-5 flex-1 w-full truncate">

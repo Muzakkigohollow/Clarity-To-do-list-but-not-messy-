@@ -1,6 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const taskRoutes = require('./routes/tasks');
+const authRoutes = require('./routes/auth');
+const jwtAuth = require('./auth/jwtAuth');
+const db = require('./db');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
@@ -29,12 +33,27 @@ app.use(cors({
 // Limit JSON body sizes to reduce abuse and accidental large payloads.
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 
-// Minimal security headers (subset of helmet)
+// Trust proxy to ensure rate limiting uses the correct client IPs behind a load balancer
+app.set('trust proxy', 1);
+
+// Structured Request logging middleware
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        const userId = req.user ? req.user.id : 'unauth';
+        console.log(`[REQ] ${new Date().toISOString()} | ${res.statusCode} | ${req.method} ${req.originalUrl} | IP: ${req.ip} | User: ${userId} | ${duration}ms`);
+    });
+    next();
+});
+
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Permissions-Policy', 'geolocation=()');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; object-src 'none';");
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
 });
 
@@ -61,7 +80,19 @@ app.use('/api', (req, res, next) => {
     return next();
 });
 
-app.use('/api/tasks', taskRoutes);
+// Circuit breaker middleware
+app.use('/api', (req, res, next) => {
+    if (!db.isHealthy) {
+        return res.status(503).json({ error: 'Service Unavailable (Database degraded)' });
+    }
+    next();
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/tasks', jwtAuth, taskRoutes);
+
+// Centralized error handling (Must be last)
+app.use(errorHandler);
 
 // Export for tests and for server
 module.exports = app;
