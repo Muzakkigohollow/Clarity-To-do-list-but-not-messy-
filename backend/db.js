@@ -23,9 +23,8 @@ pool.checkConnection = async () => {
         pool.isHealthy = true;
         return true;
     } catch (err) {
-        if (pool.isHealthy) {
-             console.error('❌ Database connection lost:', err.message);
-        }
+        // Log startup failures too, not only post-healthy drops.
+        console.error(pool.isHealthy ? '❌ Database connection lost:' : '⚠️ Database connection failed:', err.message);
         pool.isHealthy = false;
         return false;
     }

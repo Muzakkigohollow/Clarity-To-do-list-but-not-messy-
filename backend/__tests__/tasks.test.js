@@ -88,4 +88,26 @@ describe('Tasks API', () => {
         
         dbMod.isHealthy = oldIsHealthy;
     });
+
+    test('GET /api/tasks/stats returns task stats for a date range', async () => {
+        db.isHealthy = true; // Ensure circuit breaker is healthy
+        db.query.mockResolvedValue([[{ date: '2026-04-01', count: 5 }]]);
+
+        const response = await request(app)
+            .get('/api/tasks/stats?startDate=2026-04-01&endDate=2026-04-30')
+            .set('Authorization', 'Bearer fake');
+        
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual([{ date: '2026-04-01', count: 5 }]);
+    });
+
+    test('GET /api/tasks/stats returns 400 on missing dates', async () => {
+        db.isHealthy = true; // Ensure circuit breaker is healthy
+        const response = await request(app)
+            .get('/api/tasks/stats')
+            .set('Authorization', 'Bearer fake');
+        
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('startDate and endDate required');
+    });
 });

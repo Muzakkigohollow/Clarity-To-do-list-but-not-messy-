@@ -12,16 +12,19 @@ const app = express();
 app.disable('x-powered-by');
 
 // Restrict CORS to known frontend origins.
-// Set `CORS_ORIGIN=http://localhost:5173` (or a comma-separated list) to configure.
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+// Set `CORS_ORIGIN` as a comma-separated list to configure (e.g. http://localhost:5173,http://localhost:8080).
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:8080')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
+
+const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 app.use(cors({
     origin: (origin, callback) => {
         // Allow non-browser calls (no Origin header)
         if (!origin) return callback(null, true);
+        if (localhostPattern.test(origin)) return callback(null, true);
         if (allowedOrigins.includes(origin)) return callback(null, true);
         return callback(new Error('Not allowed by CORS'));
     },

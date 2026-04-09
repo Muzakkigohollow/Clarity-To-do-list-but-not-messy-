@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import TaskForm from './TaskForm';
 import TaskItem from './TaskItem';
+import TaskStatsChart from './TaskStatsChart';
 import * as taskService from '../services/taskService';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,6 +10,7 @@ const Dashboard = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [doneLimit, setDoneLimit] = useState(20);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -61,7 +63,7 @@ const Dashboard = () => {
     }
   };
 
-  const { progressPercent, todayTasks, upcomingTasks } = useMemo(() => {
+  const { progressPercent, todayTasks, upcomingTasks, doneTasks } = useMemo(() => {
     const doneCount = tasks.filter(t => t.status === 'DONE').length;
     const totalCount = tasks.length;
     const progress = totalCount === 0 ? 0 : Math.round((doneCount / totalCount) * 100);
@@ -70,12 +72,14 @@ const Dashboard = () => {
     const todayDateStr = new Date().toLocaleDateString('en-CA'); 
     
     const priorityWeight = { HIGH: 1, MEDIUM: 2, LOW: 3 };
-    const sortedTasks = [...tasks].sort((a, b) => priorityWeight[a.priority] - priorityWeight[b.priority]);
+    
+    const pendingTasks = tasks.filter(t => t.status === 'PENDING').sort((a, b) => priorityWeight[a.priority] - priorityWeight[b.priority]);
+    const doneList = tasks.filter(t => t.status === 'DONE').sort((a, b) => new Date(b.completed_at || b.updated_at || b.created_at || 0) - new Date(a.completed_at || a.updated_at || a.created_at || 0));
 
     const todayList = [];
     const upcomingList = [];
 
-    sortedTasks.forEach(t => {
+    pendingTasks.forEach(t => {
       if (!t.deadline) {
         todayList.push(t);
       } else {
@@ -88,7 +92,7 @@ const Dashboard = () => {
       }
     });
 
-    return { progressPercent: progress, todayTasks: todayList, upcomingTasks: upcomingList };
+    return { progressPercent: progress, todayTasks: todayList, upcomingTasks: upcomingList, doneTasks: doneList };
   }, [tasks]);
 
   const handleLogout = () => {
@@ -128,6 +132,7 @@ const Dashboard = () => {
       )}
 
       <TaskForm onTaskAdded={handleAddTask} />
+      <TaskStatsChart />
 
       {loading ? (
         <div className="text-center text-clarity-muted py-10">Loading tasks...</div>
@@ -155,12 +160,44 @@ const Dashboard = () => {
           {/* Upcoming Section */}
           {upcomingTasks.length > 0 && (
             <div>
-              <h2 className="text-lg font-bold text-gray-400 mb-4 border-b pb-2">Upcoming</h2>
-              <div className="space-y-3 opacity-80">
+              <h2 className="text-lg font-bold text-gray-400 mb-4 border-b pb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
+                Upcoming
+              </h2>
+              <div className="space-y-3 opacity-90">
                 {upcomingTasks.map(task => (
                   <TaskItem key={task.id} task={task} onToggleStatus={handleToggleStatus} onDelete={handleDeleteTask} />
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Done Section */}
+          {doneTasks.length > 0 && (
+            <div className="pt-4 border-t-2 border-dashed border-gray-200">
+              <h2 className="text-lg font-bold text-gray-400 mb-4 pb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-gray-300 inline-block"></span>
+                  Completed Tasks
+                </div>
+                <span className="text-xs font-normal text-gray-400">{doneTasks.length} total</span>
+              </h2>
+              <div className="space-y-3">
+                {doneTasks.slice(0, doneLimit).map(task => (
+                  <TaskItem key={task.id} task={task} onToggleStatus={handleToggleStatus} onDelete={handleDeleteTask} />
+                ))}
+              </div>
+              
+              {doneTasks.length > doneLimit && (
+                <div className="text-center mt-6">
+                  <button 
+                    onClick={() => setDoneLimit(prev => prev + 20)}
+                    className="text-sm font-medium text-indigo-500 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 py-2 px-6 rounded-full transition-colors"
+                  >
+                    Load More Completed Tasks
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

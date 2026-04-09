@@ -40,7 +40,7 @@ function normalizeDeadline(deadline) {
 exports.getAllTasks = async (req, res, next) => {
     try {
         const [rows] = await db.query(
-            'SELECT id, title, priority, deadline, status FROM tasks WHERE user_id=? ORDER BY FIELD(priority, "HIGH", "MEDIUM", "LOW")',
+            'SELECT id, title, priority, deadline, status, COALESCE(completed_at, updated_at) AS completed_at FROM tasks WHERE user_id=? ORDER BY FIELD(priority, "HIGH", "MEDIUM", "LOW")',
             [req.user.id]
         );
         res.json(rows);
@@ -77,7 +77,8 @@ exports.createTask = async (req, res, next) => {
             priority: normalizedPriority,
             deadline: normalizedDeadline,
             status: 'PENDING',
-            user_id
+            user_id,
+            completed_at: null
         });
     } catch (err) {
         next(err);
@@ -102,18 +103,19 @@ exports.updateTask = async (req, res, next) => {
     const user_id = req.user.id;
     try {
         const [result] = await db.query(
-            'UPDATE tasks SET title=?, priority=?, deadline=?, status=? WHERE id=? AND user_id=?',
-            [title.trim(), priority, normalizedDeadline, status, parsedId, user_id]
+            'UPDATE tasks SET title=?, priority=?, deadline=?, status=?, completed_at=IF(?="DONE", COALESCE(completed_at, NOW()), NULL) WHERE id=? AND user_id=?',
+            [title.trim(), priority, normalizedDeadline, status, status, parsedId, user_id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ error: 'Task not found' });
+
+        const [rows] = await db.query(
+            'SELECT id, title, priority, deadline, status, completed_at FROM tasks WHERE id=? AND user_id=?',
+            [parsedId, user_id]
+        );
+
         res.json({
             message: 'Task updated successfully',
-            id: parsedId,
-            title: title.trim(),
-            priority,
-            deadline: normalizedDeadline,
-            status,
-            user_id
+            ...rows[0]
         });
     } catch (err) {
         next(err);
@@ -167,6 +169,9 @@ exports.patchTask = async (req, res, next) => {
             if (!validateStatus(updates.status)) return res.status(400).json({ error: 'Invalid status' });
             fields.push('status = ?');
             values.push(updates.status);
+
+            fields.push('completed_at = IF(?="DONE", COALESCE(completed_at, NOW()), NULL)');
+            values.push(updates.status);
         }
         if (updates.deadline !== undefined) {
             const normalizedDeadline = normalizeDeadline(updates.deadline);
@@ -189,11 +194,44 @@ exports.patchTask = async (req, res, next) => {
 
         // Retrieve updated task
         const [rows] = await db.query(
-            'SELECT id, title, priority, deadline, status FROM tasks WHERE id = ? AND user_id = ?',
+            'SELECT id, title, priority, deadline, status, completed_at FROM tasks WHERE id = ? AND user_id = ?',
             [parsedId, user_id]
         );
         res.json({ message: 'Task partially updated', ...rows[0] });
 
+    } catch (err) {
+        next(err);
+    }
+};
+
+exports.getTaskStats = async (req, res, next) => {
+    try {
+        const { startDate, endDate } = req.query;
+        if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
+
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (isNaN(start) || isNaN(end)) return res.status(400).json({ error: 'Invalid dates' });
+        
+        // Use internally formatted dates to prevent any SQL injection vectors
+        const startStr = start.toISOString().split('T')[0];
+        const endStrParsed = end.toISOString().split('T')[0];
+        
+        const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        let groupFormat = '%Y-%m-%d'; // Default daily
+        if (diffDays > 60) groupFormat = '%Y-%m'; // Monthly
+        else if (diffDays > 14) groupFormat = '%x-W%v'; // Weekly
+
+        const [rows] = await db.query(
+            `SELECT DATE_FORMAT(completed_at, ?) as date, COUNT(*) as count 
+             FROM tasks 
+             WHERE user_id = ? AND status = 'DONE' AND completed_at BETWEEN ? AND ? 
+             GROUP BY date 
+             ORDER BY date ASC`,
+            [groupFormat, req.user.id, `${startStr} 00:00:00`, `${endStrParsed} 23:59:59`]
+        );
+
+        res.json(rows);
     } catch (err) {
         next(err);
     }

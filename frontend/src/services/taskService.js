@@ -24,3 +24,8 @@ export const deleteTask = async (id) => {
     const response = await api.delete(`/tasks/${id}`);
     return response.data;
 };
+
+export const getTaskStats = async (startDate, endDate) => {
+    const response = await api.get(`/tasks/stats?startDate=${startDate}&endDate=${endDate}`);
+    return response.data;
+};

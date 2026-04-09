@@ -42,64 +42,61 @@ This project was built emphasizing **Enterprise-Grade Engineering Practices**, i
 ## 🛠️ Prerequisites
 
 Before you begin, ensure you have installed:
-- **Node.js** (v18+)
-- **MySQL Server** (v8+)
+- **Docker Engine** (or Docker Desktop)
+- **Docker Compose v2** (`docker compose`)
 - **Git**
 
-## 📦 Local Setup Guide
+## 📦 Local Setup (Docker - Recommended)
 
-### 1. Database Initialization
-Clarity utilizes MySQL for permanent data storage. We need to create the internal tables.
+This project now runs fully with Docker Compose (database, backend API, frontend, and phpMyAdmin).
+
+### 1. Build and Start All Services
+From project root, run:
 ```bash
-# Navigate to the backend
-cd backend
-
-# Execute the schema script to generate the `clarity_db` database
-mysql -u root -p < schema.sql
+docker compose up --build -d
 ```
 
-### 2. Backend Environment Setup
-1. Inside the `/backend` folder, install the necessary dependencies:
-   ```bash
-   npm install
-   ```
-2. Create or verify the `/backend/.env` file with these default development variables:
-   ```env
-   PORT=5000
-   DB_HOST=localhost
-   DB_USER=root
-   DB_PASS=1998
-   DB_NAME=clarity_db
-   DB_CONNECTION_LIMIT=10
-   JWT_SECRET=super_secret_dev_key_change_in_production
-   CORS_ORIGIN=http://localhost:5173
-   ```
-3. Start up the backend server:
-   ```bash
-   npm run dev
-   ```
-   *(Your API will spin up synchronously with the MySQL connection pool at `http://localhost:5000`)*
+What this does automatically:
+- Starts MySQL (`db`)
+- Initializes tables from `backend/schema.sql` (first run only)
+- Builds and runs backend API (`backend`)
+- Builds and serves frontend via Nginx (`frontend`)
+- Starts phpMyAdmin (`phpmyadmin`)
 
-### 3. Frontend Setup
-1. Open a **second terminal** and navigate to `/frontend`.
-2. Install the User Interface dependencies:
-   ```bash
-   npm install
-   ```
-3. Create or verify the `/frontend/.env` file:
-   ```env
-   VITE_API_BASE_URL=http://localhost:5000/api
-   ```
-4. Boot the React application:
-   ```bash
-   npm run dev
-   ```
-5. 🌐 **Open [http://localhost:5173](http://localhost:5173)** in your browser. Register a new user, and experience Clarity.
+### 2. Access the App
+- Frontend: [http://localhost:8080](http://localhost:8080)
+- Backend API: [http://localhost:5000](http://localhost:5000)
+- phpMyAdmin: [http://localhost:8081](http://localhost:8081)
+
+### 3. Useful Docker Commands
+```bash
+# Check running containers
+docker compose ps
+
+# View logs (all services)
+docker compose logs -f
+
+# View logs for specific service
+docker compose logs -f backend
+
+# Stop all services
+docker compose down
+```
+
+### 4. Reset Database (if needed)
+If you want a fresh database, remove containers and DB volume:
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+> ⚠️ This will permanently delete local MySQL data in Docker volume.
+
+### 5. Optional: Run Without Docker (Legacy Manual Setup)
+Manual Node.js + local MySQL setup is still possible, but Docker flow above is the recommended and maintained path.
 
 ## 🧪 Testing
 The backend infrastructure features a suite of integration tests to confirm HTTP response boundaries and data processing logic.
 ```bash
-cd backend
-npm run test
+docker compose exec backend npm test
 ```
 
